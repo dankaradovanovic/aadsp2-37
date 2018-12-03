@@ -11,25 +11,26 @@
 #define GAIN_9_4 0.33884415613920255
 #define GAIN_3_8 0.6456542290346555
 
-double x_history0[] = { 0, 0 };	//LEFT SURROUND
-double y_history0[] = { 0, 0 };
+double x_history0[2] = { 0.0, 0.0 };	//LEFT SURROUND
+double y_history0[2] = { 0.0, 0.0 };
 
-double x_history1[] = { 0, 0 };	//LEFT
-double y_history1[] = { 0, 0 };
+double x_history1[2] = { 0.0, 0.0 };	//LEFT
+double y_history1[2] = { 0.0, 0.0 };
 
-double x_history2[] = { 0, 0 };	//BASS
-double y_history2[] = { 0, 0 };
+double x_history2[2] = { 0.0, 0.0 };	//BASS
+double y_history2[2] = { 0.0, 0.0 };
 
-double x_history3[] = { 0, 0 };	//RIGHT SURROUND
-double y_history3[] = { 0, 0 };
+double x_history3[2] = { 0.0, 0.0 };	//RIGHT SURROUND
+double y_history3[2] = { 0.0, 0.0 };
 
-double x_history4[] = { 0, 0 };	//RIGHT
-double y_history4[] = { 0, 0 };
+double x_history4[2] = { 0.0, 0.0 };	//RIGHT
+double y_history4[2] = { 0.0, 0.0 };
 
 
 double sampleBuffer[MAX_NUM_CHANNEL][BLOCK_SIZE];
 double tempBuffer[MAX_NUM_CHANNEL][BLOCK_SIZE];
 int mode = 1; //1 = 2_0_0, 0 = 2_2_1
+int enable = 1; //1=on, 0=off
 int gain = 1;
 
 double second_order_IIR(double input, double* coefficients, double* x_history, double* y_history);
@@ -53,6 +54,29 @@ int main(int argc, char* argv[])
 	wav_in = OpenWavFileForRead (WavInputName,"rb");
 	strcpy(WavOutputName,argv[2]);
 	wav_out = OpenWavFileForRead (WavOutputName,"wb");
+
+	if (argc > 3)
+	{
+		if (((enable == atoi(argv[3])) != 0) && ((enable == atoi(argv[3])) != 1))
+		{
+			printf("Invalid mode input, choose 0 or 1\n ");
+			return -1;
+		}
+		else if (((enable == atoi(argv[3])) == 1)) 
+		{
+			if (((mode == atoi(argv[3])) != 0)) {
+			
+			}
+		}
+		if (argc > 4)
+		{
+			if (((gain = atoi(argv[4])) > 0))
+			{
+				printf("Invalid gain input, must be negative\n");
+				return -1;
+			}
+		}
+	}
 	//-------------------------------------------------
 
 	// Read input wav header
@@ -132,11 +156,11 @@ int main(int argc, char* argv[])
 double second_order_IIR(double input, double* coefficients, double* x_history, double* y_history) {
 	double output = 0;
 
-	output += (coefficients[0] * input);        /* A0 * x(n)     */
-	output += (coefficients[1] * x_history[0]); /* A1 * x(n-1) */
-	output += (coefficients[2] * x_history[1]); /* A2 * x(n-2)   */
-	output -= (coefficients[4] * y_history[0]); /* B1 * y(n-1) */
-	output -= (coefficients[5] * y_history[1]); /* B2 * y(n-2)   */
+	output += coefficients[0] * input;        /* A0 * x(n)     */
+	output += coefficients[1] * x_history[0]; /* A1 * x(n-1) */
+	output += coefficients[2] * x_history[1]; /* A2 * x(n-2)   */
+	output -= coefficients[4] * y_history[0]; /* B1 * y(n-1) */
+	output -= coefficients[5] * y_history[1]; /* B2 * y(n-2)   */
 
 
 	y_history[1] = y_history[0];    /* y(n-2) = y(n-1) */
@@ -155,46 +179,81 @@ void processing()
 
 	for (i = 0; i < BLOCK_SIZE; i++)
 	{
-		tempL = sampleBuffer[0][i] * gain;
+		tempL = sampleBuffer[0][i];
 		tempR = sampleBuffer[1][i] * gain;
 
-	
-		/*LEFT CHANNEL*/
-		for(k = 0; k < 2; k++)
-		{
-			sampleBuffer[0][i] = second_order_IIR(tempL, filter2high, x_history0, y_history0);
-		}
-		for (k = 0; k < 2; k++)
-		{
-			sampleBuffer[2][i] = second_order_IIR(tempL, filter2low, x_history1, y_history1);
-		}
-		sampleBuffer[2][i] = sampleBuffer[0][i] * GAIN_9_4;
-		for (k = 0; k < 2; k++) 
-		{
-			tempBuffer[0][i] = second_order_IIR(sampleBuffer[0][i], filter2low, x_history2, y_history2);
-		}
-		tempBuffer[0][i] = tempBuffer[0][i] * GAIN_3_8;
-		sampleBuffer[1][i] = tempBuffer[0][i] + sampleBuffer[2][i];
+		if (enable == 1) {
+			/*LEFT CHANNEL*/
+			for (k = 0; k < 2; k++)
+			{
+				sampleBuffer[0][i] = second_order_IIR(tempL, filter2high, x_history0, y_history0);
+			}
+			for (k = 0; k < 2; k++)
+			{
+				sampleBuffer[2][i] = second_order_IIR(tempL, filter2low, x_history2, y_history2);
+			}
+			sampleBuffer[2][i] = sampleBuffer[2][i] * GAIN_9_4;
+			for (k = 0; k < 2; k++)
+			{
+				tempBuffer[0][i] = second_order_IIR(sampleBuffer[0][i], filter2low, x_history1, y_history1);
+			}
+			tempBuffer[0][i] = tempBuffer[0][i] * GAIN_3_8;
+			sampleBuffer[1][i] = tempBuffer[0][i] + sampleBuffer[2][i];
 
-		/*RIGHT CHANNEL*/
+			/*RIGHT CHANNEL*/
 
-		for (k = 0; k < 2; k++)
-		{
-			sampleBuffer[3][i] = second_order_IIR(tempR, filter2high, x_history3, y_history3);
+			for (k = 0; k < 2; k++)
+			{
+				sampleBuffer[3][i] = second_order_IIR(tempR, filter2high, x_history3, y_history3);
+			}
+			for (k = 0; k < 2; k++)
+			{
+				tempBuffer[1][i] = second_order_IIR(sampleBuffer[3][i], filter2low, x_history4, y_history4);
+			}
+			tempBuffer[1][i] = tempBuffer[1][i] * GAIN_3_8;
+			for (k = 0; k < 2; k++)
+			{
+				tempBuffer[2][i] = second_order_IIR(tempR, filter2low, x_history4, y_history4);
+			}
+			tempBuffer[2][i] = tempBuffer[2][i] * GAIN_9_4;
+			sampleBuffer[4][i] = tempBuffer[1][i] + tempBuffer[2][i];
 		}
-		for (k = 0; k < 2; k++)
-		{
-			tempBuffer[1][i] = second_order_IIR(sampleBuffer[3][i], filter2low, x_history4, y_history4);
+		else {
+			/*LEFT CHANNEL*/
+			for (k = 0; k < 2; k++)
+			{
+				sampleBuffer[0][i] = second_order_IIR(tempL, filter2high, x_history0, y_history0) * 0.0;
+			}
+			for (k = 0; k < 2; k++)
+			{
+				sampleBuffer[2][i] = second_order_IIR(tempL, filter2low, x_history2, y_history2);
+			}
+			sampleBuffer[2][i] = sampleBuffer[2][i] * GAIN_9_4 * 0.0;
+			for (k = 0; k < 2; k++)
+			{
+				tempBuffer[0][i] = second_order_IIR(sampleBuffer[0][i], filter2low, x_history1, y_history1);
+			}
+			tempBuffer[0][i] = tempBuffer[0][i] * GAIN_3_8;
+			sampleBuffer[1][i] = tempBuffer[0][i] + sampleBuffer[2][i] * 0.0;
+
+			/*RIGHT CHANNEL*/
+
+			for (k = 0; k < 2; k++)
+			{
+				sampleBuffer[3][i] = second_order_IIR(tempR, filter2high, x_history3, y_history3) * 0.0;
+			}
+			for (k = 0; k < 2; k++)
+			{
+				tempBuffer[1][i] = second_order_IIR(sampleBuffer[3][i], filter2low, x_history4, y_history4);
+			}
+			tempBuffer[1][i] = tempBuffer[1][i] * GAIN_3_8;
+			for (k = 0; k < 2; k++)
+			{
+				tempBuffer[2][i] = second_order_IIR(tempR, filter2low, x_history4, y_history4);
+			}
+			tempBuffer[2][i] = tempBuffer[2][i] * GAIN_9_4;
+			sampleBuffer[4][i] = tempBuffer[1][i] + tempBuffer[2][i] * 0.0;
 		}
-		tempBuffer[1][i] = tempBuffer[1][i] * GAIN_3_8;
-		for (k = 0; k < 2; k++)
-		{
-			tempBuffer[2][i] = second_order_IIR(tempR, filter2low, x_history4, y_history4);
-		}
-		tempBuffer[2][i] = tempBuffer[2][i] * GAIN_9_4;
-		sampleBuffer[4][i] = tempBuffer[1][i] + tempBuffer[2][i];
- 			
-		
 
 
 	}
