@@ -1,6 +1,8 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+#include <stdio.h>
 #include "WAVheader.h"
 #include "iir_filter.h"
 
@@ -29,12 +31,17 @@ double y_history4[2] = { 0.0, 0.0 };
 
 double sampleBuffer[MAX_NUM_CHANNEL][BLOCK_SIZE];
 double tempBuffer[MAX_NUM_CHANNEL][BLOCK_SIZE];
-int mode = 1; //1 = 2_0_0, 0 = 2_2_1
+char decibels[50];
+char* pEnd;
+
+enum output_mode  {MODE_2_0_0, MODE_2_2_1}; 
+output_mode outputMode = MODE_2_0_0;
 int enable = 1; //1=on, 0=off
-int gain = 1;
+float input_gain = 1.0;
 
 double second_order_IIR(double input, double* coefficients, double* x_history, double* y_history);
 void processing();
+float dBToinput_gain();
 
 int main(int argc, char* argv[])
 {
@@ -48,6 +55,12 @@ int main(int argc, char* argv[])
 	for(int i=0; i<MAX_NUM_CHANNEL; i++)
 		memset(&sampleBuffer[i],0,BLOCK_SIZE);
 
+	if (argc != 6)
+	{
+		printf("Nema dovoljno argumenata!\n");
+		return -1;
+	}
+
 	// Open input and output wav files
 	//-------------------------------------------------
 	strcpy(WavInputName,argv[1]);
@@ -55,28 +68,27 @@ int main(int argc, char* argv[])
 	strcpy(WavOutputName,argv[2]);
 	wav_out = OpenWavFileForRead (WavOutputName,"wb");
 
-	if (argc > 3)
+	//mode selection 
+	enable = atoi(argv[3]);
+	printf("Enable: 1-ON, 0-OFF -> %d\n", enable);
+
+	strcpy(decibels, argv[4]);
+	input_gain = strtol(decibels, &pEnd, 10);
+	input_gain = dBToinput_gain(); 
+	printf("Gain: %f dB\n", input_gain);
+
+	int outputMode1 = atoi(argv[5] + 4);
+	if (outputMode1 == 0) 
 	{
-		if (((enable == atoi(argv[3])) != 0) && ((enable == atoi(argv[3])) != 1))
-		{
-			printf("Invalid mode input, choose 0 or 1\n ");
-			return -1;
-		}
-		else if (((enable == atoi(argv[3])) == 1)) 
-		{
-			if (((mode == atoi(argv[3])) != 0)) {
-			
-			}
-		}
-		if (argc > 4)
-		{
-			if (((gain = atoi(argv[4])) > 0))
-			{
-				printf("Invalid gain input, must be negative\n");
-				return -1;
-			}
-		}
+		printf("Mode: 2_0_0!\n");
+		outputMode = MODE_2_0_0;
 	}
+	else
+	{
+		printf("Mode: Default 2_2_1\n");
+		outputMode = MODE_2_2_1;
+	}
+
 	//-------------------------------------------------
 
 	// Read input wav header
@@ -179,82 +191,169 @@ void processing()
 
 	for (i = 0; i < BLOCK_SIZE; i++)
 	{
-		tempL = sampleBuffer[0][i];
-		tempR = sampleBuffer[1][i] * gain;
+		tempL = sampleBuffer[0][i] * input_gain;
+		tempR = sampleBuffer[1][i] * input_gain;
 
-		if (enable == 1) {
-			/*LEFT CHANNEL*/
-			for (k = 0; k < 2; k++)
-			{
-				sampleBuffer[0][i] = second_order_IIR(tempL, filter2high, x_history0, y_history0);
-			}
-			for (k = 0; k < 2; k++)
-			{
-				sampleBuffer[2][i] = second_order_IIR(tempL, filter2low, x_history2, y_history2);
-			}
-			sampleBuffer[2][i] = sampleBuffer[2][i] * GAIN_9_4;
-			for (k = 0; k < 2; k++)
-			{
-				tempBuffer[0][i] = second_order_IIR(sampleBuffer[0][i], filter2low, x_history1, y_history1);
-			}
-			tempBuffer[0][i] = tempBuffer[0][i] * GAIN_3_8;
-			sampleBuffer[1][i] = tempBuffer[0][i] + sampleBuffer[2][i];
+		switch(outputMode)
+		{
+		case MODE_2_0_0:
+			if (enable == 1) {
+				/*LEFT CHANNEL*/
+				for (k = 0; k < 2; k++)
+				{
+					sampleBuffer[0][i] = second_order_IIR(tempL, filter2high, x_history0, y_history0);
+				}
+				for (k = 0; k < 2; k++)
+				{
+					sampleBuffer[2][i] = second_order_IIR(tempL, filter2low, x_history2, y_history2);
+				}
+				sampleBuffer[2][i] = sampleBuffer[2][i] * GAIN_9_4;
+				for (k = 0; k < 2; k++)
+				{
+					tempBuffer[0][i] = second_order_IIR(sampleBuffer[0][i], filter2low, x_history1, y_history1);
+				}
+				tempBuffer[0][i] = tempBuffer[0][i] * GAIN_3_8;
+				sampleBuffer[1][i] = tempBuffer[0][i] + sampleBuffer[2][i];
+				sampleBuffer[0][i] = sampleBuffer[0][i] * 0.0;
+				sampleBuffer[2][i] = sampleBuffer[2][i] * 0.0;
 
-			/*RIGHT CHANNEL*/
+				/*RIGHT CHANNEL*/
 
-			for (k = 0; k < 2; k++)
-			{
-				sampleBuffer[3][i] = second_order_IIR(tempR, filter2high, x_history3, y_history3);
+				for (k = 0; k < 2; k++)
+				{
+					sampleBuffer[3][i] = second_order_IIR(tempR, filter2high, x_history3, y_history3);
+				}
+				for (k = 0; k < 2; k++)
+				{
+					tempBuffer[1][i] = second_order_IIR(sampleBuffer[3][i], filter2low, x_history4, y_history4);
+				}
+				tempBuffer[1][i] = tempBuffer[1][i] * GAIN_3_8;
+				for (k = 0; k < 2; k++)
+				{
+					tempBuffer[2][i] = second_order_IIR(tempR, filter2low, x_history4, y_history4);
+				}
+				tempBuffer[2][i] = tempBuffer[2][i] * GAIN_9_4;
+				sampleBuffer[4][i] = tempBuffer[1][i] + tempBuffer[2][i];
+				sampleBuffer[3][i] = sampleBuffer[3][i] * 0.0;
 			}
-			for (k = 0; k < 2; k++)
+			else 
 			{
-				tempBuffer[1][i] = second_order_IIR(sampleBuffer[3][i], filter2low, x_history4, y_history4);
+				/*LEFT CHANNEL*/
+				for (k = 0; k < 2; k++)
+				{
+					sampleBuffer[0][i] = second_order_IIR(tempL, filter2high, x_history0, y_history0) * 0.0;
+				}
+				for (k = 0; k < 2; k++)
+				{
+					sampleBuffer[2][i] = second_order_IIR(tempL, filter2low, x_history2, y_history2);
+				}
+				sampleBuffer[2][i] = sampleBuffer[2][i] * GAIN_9_4 * 0.0;
+				for (k = 0; k < 2; k++)
+				{
+					tempBuffer[0][i] = second_order_IIR(sampleBuffer[0][i], filter2low, x_history1, y_history1);
+				}
+				tempBuffer[0][i] = tempBuffer[0][i] * GAIN_3_8;
+				sampleBuffer[1][i] = tempBuffer[0][i] + sampleBuffer[2][i] * 0.0;
+
+				/*RIGHT CHANNEL*/
+
+				for (k = 0; k < 2; k++)
+				{
+					sampleBuffer[3][i] = second_order_IIR(tempR, filter2high, x_history3, y_history3) * 0.0;
+				}
+				for (k = 0; k < 2; k++)
+				{
+					tempBuffer[1][i] = second_order_IIR(sampleBuffer[3][i], filter2low, x_history4, y_history4);
+				}
+				tempBuffer[1][i] = tempBuffer[1][i] * GAIN_3_8;
+				for (k = 0; k < 2; k++)
+				{
+					tempBuffer[2][i] = second_order_IIR(tempR, filter2low, x_history4, y_history4);
+				}
+				tempBuffer[2][i] = tempBuffer[2][i] * GAIN_9_4;
+				sampleBuffer[4][i] = tempBuffer[1][i] + tempBuffer[2][i] * 0.0;
 			}
-			tempBuffer[1][i] = tempBuffer[1][i] * GAIN_3_8;
-			for (k = 0; k < 2; k++)
+			break;
+
+		case MODE_2_2_1:
+			if (enable == 1) {
+				/*LEFT CHANNEL*/
+				for (k = 0; k < 2; k++)
+				{
+					sampleBuffer[0][i] = second_order_IIR(tempL, filter2high, x_history0, y_history0);
+				}
+				for (k = 0; k < 2; k++)
+				{
+					sampleBuffer[2][i] = second_order_IIR(tempL, filter2low, x_history2, y_history2);
+				}
+				sampleBuffer[2][i] = sampleBuffer[2][i] * GAIN_9_4;
+				for (k = 0; k < 2; k++)
+				{
+					tempBuffer[0][i] = second_order_IIR(sampleBuffer[0][i], filter2low, x_history1, y_history1);
+				}
+				tempBuffer[0][i] = tempBuffer[0][i] * GAIN_3_8;
+				sampleBuffer[1][i] = tempBuffer[0][i] + sampleBuffer[2][i];
+
+				/*RIGHT CHANNEL*/
+
+				for (k = 0; k < 2; k++)
+				{
+					sampleBuffer[3][i] = second_order_IIR(tempR, filter2high, x_history3, y_history3);
+				}
+				for (k = 0; k < 2; k++)
+				{
+					tempBuffer[1][i] = second_order_IIR(sampleBuffer[3][i], filter2low, x_history4, y_history4);
+				}
+				tempBuffer[1][i] = tempBuffer[1][i] * GAIN_3_8;
+				for (k = 0; k < 2; k++)
+				{
+					tempBuffer[2][i] = second_order_IIR(tempR, filter2low, x_history4, y_history4);
+				}
+				tempBuffer[2][i] = tempBuffer[2][i] * GAIN_9_4;
+				sampleBuffer[4][i] = tempBuffer[1][i] + tempBuffer[2][i];
+			}
+			else
 			{
-				tempBuffer[2][i] = second_order_IIR(tempR, filter2low, x_history4, y_history4);
+				/*LEFT CHANNEL*/
+				for (k = 0; k < 2; k++)
+				{
+					sampleBuffer[0][i] = second_order_IIR(tempL, filter2high, x_history0, y_history0) * 0.0;
+				}
+				for (k = 0; k < 2; k++)
+				{
+					sampleBuffer[2][i] = second_order_IIR(tempL, filter2low, x_history2, y_history2);
+				}
+				sampleBuffer[2][i] = sampleBuffer[2][i] * GAIN_9_4 * 0.0;
+				for (k = 0; k < 2; k++)
+				{
+					tempBuffer[0][i] = second_order_IIR(sampleBuffer[0][i], filter2low, x_history1, y_history1);
+				}
+				tempBuffer[0][i] = tempBuffer[0][i] * GAIN_3_8;
+				sampleBuffer[1][i] = tempBuffer[0][i] + sampleBuffer[2][i] * 0.0;
+
+				/*RIGHT CHANNEL*/
+
+				for (k = 0; k < 2; k++)
+				{
+					sampleBuffer[3][i] = second_order_IIR(tempR, filter2high, x_history3, y_history3) * 0.0;
+				}
+				for (k = 0; k < 2; k++)
+				{
+					tempBuffer[1][i] = second_order_IIR(sampleBuffer[3][i], filter2low, x_history4, y_history4);
+				}
+				tempBuffer[1][i] = tempBuffer[1][i] * GAIN_3_8;
+				for (k = 0; k < 2; k++)
+				{
+					tempBuffer[2][i] = second_order_IIR(tempR, filter2low, x_history4, y_history4);
+				}
+				tempBuffer[2][i] = tempBuffer[2][i] * GAIN_9_4;
+				sampleBuffer[4][i] = tempBuffer[1][i] + tempBuffer[2][i] * 0.0;
 			}
-			tempBuffer[2][i] = tempBuffer[2][i] * GAIN_9_4;
-			sampleBuffer[4][i] = tempBuffer[1][i] + tempBuffer[2][i];
 		}
-		else {
-			/*LEFT CHANNEL*/
-			for (k = 0; k < 2; k++)
-			{
-				sampleBuffer[0][i] = second_order_IIR(tempL, filter2high, x_history0, y_history0) * 0.0;
-			}
-			for (k = 0; k < 2; k++)
-			{
-				sampleBuffer[2][i] = second_order_IIR(tempL, filter2low, x_history2, y_history2);
-			}
-			sampleBuffer[2][i] = sampleBuffer[2][i] * GAIN_9_4 * 0.0;
-			for (k = 0; k < 2; k++)
-			{
-				tempBuffer[0][i] = second_order_IIR(sampleBuffer[0][i], filter2low, x_history1, y_history1);
-			}
-			tempBuffer[0][i] = tempBuffer[0][i] * GAIN_3_8;
-			sampleBuffer[1][i] = tempBuffer[0][i] + sampleBuffer[2][i] * 0.0;
-
-			/*RIGHT CHANNEL*/
-
-			for (k = 0; k < 2; k++)
-			{
-				sampleBuffer[3][i] = second_order_IIR(tempR, filter2high, x_history3, y_history3) * 0.0;
-			}
-			for (k = 0; k < 2; k++)
-			{
-				tempBuffer[1][i] = second_order_IIR(sampleBuffer[3][i], filter2low, x_history4, y_history4);
-			}
-			tempBuffer[1][i] = tempBuffer[1][i] * GAIN_3_8;
-			for (k = 0; k < 2; k++)
-			{
-				tempBuffer[2][i] = second_order_IIR(tempR, filter2low, x_history4, y_history4);
-			}
-			tempBuffer[2][i] = tempBuffer[2][i] * GAIN_9_4;
-			sampleBuffer[4][i] = tempBuffer[1][i] + tempBuffer[2][i] * 0.0;
-		}
-
 
 	}
+}
+float dBToinput_gain()
+{
+	return pow(10.0f, input_gain / 20.0f);
 }
