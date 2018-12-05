@@ -238,7 +238,6 @@ void processing()
 					*tempRightHelp1 = second_order_IIR(*right_s_channel, filter2low, x_history4, y_history4);
 				}
 				*tempRightHelp1 = (*tempRightHelp1) * GAIN_3_8;
-				*tempRightHelp1++;
 				for (k = 0; k < 2; k++)
 				{
 					*tempRightHelp2 = second_order_IIR(tempRight, filter2low, x_history4, y_history4);
@@ -326,37 +325,17 @@ void processing()
 			*tempRightHelp2 = *tempRightHelp2 * GAIN_9_4;
 			*right_channel = *tempRightHelp1 + *tempRightHelp2 * 0.0;
 		}
-		
-	
-
 		left_s_channel++;
 		left_channel++;
 		bass_channel++;
 		right_s_channel++;
 		right_channel++;
-		
 		tempLeftHelp++;
 		tempRightHelp1++;
 		tempRightHelp2++;
 
 		
 	}
-	/*tempL = sampleBuffer[1];
-	tempR = sampleBuffer[4];*/
-
-	/*left_s_channel = sampleBuffer[0];
-	left_channel = sampleBuffer[1];
-	bass_channel = sampleBuffer[2];
-	right_s_channel = sampleBuffer[3];
-	right_channel = sampleBuffer[4];
-	
-	
-	tempLeftHelp = tempBuffer[0];
-	tempRightHelp1 = tempBuffer[1];
-	tempRightHelp2 = tempBuffer[2];*/
-
-
-
 }
 float dBToinput_gain()
 {
