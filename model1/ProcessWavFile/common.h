@@ -1,0 +1,13 @@
+#ifndef COMMON_H
+#define COMMON_H
+
+/* Basic constants */
+
+#define BLOCK_SIZE 16
+#define MAX_NUM_CHANNEL 8
+#define NUM_OUT_CHANNELS 5
+#define GAIN_4DB 0.6309573444801932
+#define GAIN_9_4 0.33884415613920255
+#define GAIN_3_8 0.6456542290346555
+
+#endif
