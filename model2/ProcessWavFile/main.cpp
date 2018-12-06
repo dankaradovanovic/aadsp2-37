@@ -25,8 +25,8 @@ DSPfract y_history3[2] = { FRACT_NUM(0.0), FRACT_NUM(0.0) };
 DSPfract x_history4[2] = { FRACT_NUM(0.0), FRACT_NUM(0.0) };	//RIGHT
 DSPfract y_history4[2] = { FRACT_NUM(0.0), FRACT_NUM(0.0) };
 
-DSPfract filter2low[6] = { FRACT_NUM(0.07752551285593004), FRACT_NUM(0.15505102571186008), FRACT_NUM(0.07752551285593004), FRACT_NUM(0.50000000000000000000), FRACT_NUM(-0.310102051443364335), FRACT_NUM(0.120204102886728765) };
-DSPfract filter2high[6] = { FRACT_NUM(0.37855335859929762), FRACT_NUM(-0.75710671719859525), FRACT_NUM(0.37855335859929762), FRACT_NUM(0.50000000000000000000), FRACT_NUM(-0.72712179314438065), FRACT_NUM(0.28703095755542768) };
+DSPfract filter2low[6] = { FRACT_NUM(0.07752551285593004), FRACT_NUM(0.15505102571186008), FRACT_NUM(0.07752551285593004), FRACT_NUM(1.00000000000000000000), FRACT_NUM(-0.310102051443364335), FRACT_NUM(0.120204102886728765) };
+DSPfract filter2high[6] = { FRACT_NUM(0.37855335859929762), FRACT_NUM(-0.75710671719859525), FRACT_NUM(0.37855335859929762), FRACT_NUM(1.00000000000000000000), FRACT_NUM(-0.72712179314438065), FRACT_NUM(0.28703095755542768) };
 
 DSPfract sampleBuffer[MAX_NUM_CHANNEL][BLOCK_SIZE];
 DSPfract tempBuffer[MAX_NUM_CHANNEL][BLOCK_SIZE];
@@ -199,7 +199,7 @@ DSPaccum second_order_IIR(DSPfract input, DSPfract* coefficients, DSPfract* x_hi
 	output += (*(coefficients + 2) * *(x_history + 1)) << 1; /* A2 * x(n-2)   */
 	output -= (*(coefficients + 4) * *y_history) << 1; /* B1 * y(n-1) */
 	output -= (*(coefficients + 5) * *(y_history + 1)) << 1; /* B2 * y(n-2)   */
-	//*(coefficients + 3) = *(coefficients + 3) << 1;
+	//*(coefficients + 3) << 1;
 
 	*(y_history + 1) = *y_history;    /* y(n-2) = y(n-1) */
 	*y_history = output; /* y(n-1) = y(n)   */
