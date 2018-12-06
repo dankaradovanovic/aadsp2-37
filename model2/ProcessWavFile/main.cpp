@@ -25,18 +25,17 @@ DSPfract y_history3[2] = { FRACT_NUM(0.0), FRACT_NUM(0.0) };
 DSPfract x_history4[2] = { FRACT_NUM(0.0), FRACT_NUM(0.0) };	//RIGHT
 DSPfract y_history4[2] = { FRACT_NUM(0.0), FRACT_NUM(0.0) };
 
-DSPfract filter2low[6] = { FRACT_NUM(0.07752551285593004), FRACT_NUM(0.15505102571186008), FRACT_NUM(0.07752551285593004), FRACT_NUM(0.50000000000000000000), FRACT_NUM(-0.310102051443364335), FRACT_NUM(0.120204102886728765)};
-DSPfract filter2high[6] = { FRACT_NUM(0.37855335859929762), FRACT_NUM (-0.75710671719859525), FRACT_NUM(0.37855335859929762), FRACT_NUM(0.50000000000000000000), FRACT_NUM (-0.72712179314438065), FRACT_NUM(0.28703095755542768)};
+DSPfract filter2low[6] = { FRACT_NUM(0.07752551285593004), FRACT_NUM(0.15505102571186008), FRACT_NUM(0.07752551285593004), FRACT_NUM(0.50000000000000000000), FRACT_NUM(-0.310102051443364335), FRACT_NUM(0.120204102886728765) };
+DSPfract filter2high[6] = { FRACT_NUM(0.37855335859929762), FRACT_NUM(-0.75710671719859525), FRACT_NUM(0.37855335859929762), FRACT_NUM(0.50000000000000000000), FRACT_NUM(-0.72712179314438065), FRACT_NUM(0.28703095755542768) };
 
 DSPfract sampleBuffer[MAX_NUM_CHANNEL][BLOCK_SIZE];
 DSPfract tempBuffer[MAX_NUM_CHANNEL][BLOCK_SIZE];
-DSPfract tempLeft[BLOCK_SIZE];
-DSPfract tempRight[BLOCK_SIZE];
+
 char decibels[50];
 char* pEnd;
 
-DSPfract left_s_channel[BLOCK_SIZE];
-DSPfract left_channel[BLOCK_SIZE];
+//DSPfract left_s_channel[BLOCK_SIZE];
+//DSPfract left_channel[BLOCK_SIZE];
 DSPfract bass_channel[BLOCK_SIZE];
 DSPfract right_s_channel[BLOCK_SIZE];
 DSPfract right_channel[BLOCK_SIZE];
@@ -44,6 +43,9 @@ DSPfract right_channel[BLOCK_SIZE];
 DSPfract tempLeftHelp[BLOCK_SIZE];
 DSPfract tempRightHelp1[BLOCK_SIZE];
 DSPfract tempRightHelp2[BLOCK_SIZE];
+
+DSPfract tempL[BLOCK_SIZE];
+DSPfract tempR[BLOCK_SIZE];
 
 enum output_mode { MODE_2_0_0, MODE_2_2_1 };
 output_mode outputMode = MODE_2_0_0;
@@ -73,7 +75,7 @@ DSPint main(int argc, char* argv[])
 	{
 		for (DSPint j = 0; j < BLOCK_SIZE; j++) {
 			sampleBuffer[i][j] = FRACT_NUM(0.0);
-			tempBuffer[i][j] = FRACT_NUM(0.0);
+			//tempBuffer[i][j] = FRACT_NUM(0.0);
 		}
 	}
 	if (argc != 6)
@@ -100,7 +102,7 @@ DSPint main(int argc, char* argv[])
 
 	input_gain = FRACT_NUM(atof(argv[4]));
 
-	int outputMode1 = atoi(argv[5] + 4);
+	DSPint outputMode1 = atoi(argv[5] + 4);
 	if (outputMode1 == 0)
 	{
 		printf("Mode: 2_0_0!\n");
@@ -124,9 +126,9 @@ DSPint main(int argc, char* argv[])
 	outputWAVhdr = inputWAVhdr;
 	//outputWAVhdr.fmt.NumChannels = inputWAVhdr.fmt.NumChannels; // change number of channels
 	outputWAVhdr.fmt.NumChannels = NUM_OUT_CHANNELS;
-	int oneChannelSubChunk2Size = inputWAVhdr.data.SubChunk2Size / inputWAVhdr.fmt.NumChannels;
-	int oneChannelByteRate = inputWAVhdr.fmt.ByteRate / inputWAVhdr.fmt.NumChannels;
-	int oneChannelBlockAlign = inputWAVhdr.fmt.BlockAlign / inputWAVhdr.fmt.NumChannels;
+	DSPint oneChannelSubChunk2Size = inputWAVhdr.data.SubChunk2Size / inputWAVhdr.fmt.NumChannels;
+	DSPint oneChannelByteRate = inputWAVhdr.fmt.ByteRate / inputWAVhdr.fmt.NumChannels;
+	DSPint oneChannelBlockAlign = inputWAVhdr.fmt.BlockAlign / inputWAVhdr.fmt.NumChannels;
 
 	outputWAVhdr.data.SubChunk2Size = oneChannelSubChunk2Size*outputWAVhdr.fmt.NumChannels;
 	outputWAVhdr.fmt.ByteRate = oneChannelByteRate*outputWAVhdr.fmt.NumChannels;
@@ -197,6 +199,7 @@ DSPaccum second_order_IIR(DSPfract input, DSPfract* coefficients, DSPfract* x_hi
 	output += (*(coefficients + 2) * *(x_history + 1)) << 1; /* A2 * x(n-2)   */
 	output -= (*(coefficients + 4) * *y_history) << 1; /* B1 * y(n-1) */
 	output -= (*(coefficients + 5) * *(y_history + 1)) << 1; /* B2 * y(n-2)   */
+	//*(coefficients + 3) = *(coefficients + 3) << 1;
 
 	*(y_history + 1) = *y_history;    /* y(n-2) = y(n-1) */
 	*y_history = output; /* y(n-1) = y(n)   */
@@ -211,7 +214,8 @@ void processing()
 {
 	DSPint i;
 	DSPint k;
-	DSPfract tempLeft, tempRight;
+	DSPfract* tempLeft = tempL;
+	DSPfract* tempRight = tempR;
 
 	DSPfract* left_s_channel = sampleBuffer[0];
 	DSPfract* left_channel = sampleBuffer[1];
@@ -223,12 +227,15 @@ void processing()
 	DSPfract* tempRightHelp1 = tempBuffer[1];
 	DSPfract* tempRightHelp2 = tempBuffer[2];
 
+	DSPaccum tmp1 = 0;
+	DSPaccum tmp2 = 0;
 	
 
 	for (i = 0; i < BLOCK_SIZE; i++)
 	{
-		tempLeft = (*left_s_channel) * input_gain;
-		tempRight = (*left_channel) * input_gain;
+		//DSPaccum tmp1;
+		*tempLeft = (*left_s_channel) * input_gain;
+		*tempRight = (*left_channel) * input_gain;
 		
 		if (enable == 1)
 		{
@@ -238,11 +245,11 @@ void processing()
 				/*LEFT CHANNEL*/
 				for (k = 0; k < 2; k++)
 				{
-					*left_s_channel = second_order_IIR(tempLeft, filter2high, x_history0, y_history0);
+					*left_s_channel = second_order_IIR(*tempLeft, filter2high, x_history0, y_history0);
 				}
 				for (k = 0; k < 2; k++)
 				{
-					*bass_channel = second_order_IIR(tempLeft, filter2low, x_history2, y_history2);
+					*bass_channel = second_order_IIR(*tempLeft, filter2low, x_history2, y_history2);
 				}
 				*bass_channel = (*bass_channel) * gain_9;
 				for (k = 0; k < 2; k++)
@@ -251,12 +258,13 @@ void processing()
 					
 				}
 				*tempLeftHelp = (*tempLeftHelp) * gain_3;
-				*left_channel = (*tempLeftHelp).toDouble() + (*bass_channel).toDouble();
+				tmp1 = (*tempLeftHelp) + (*bass_channel);
+				*left_channel = tmp1;
 				/*RIGHT CHANNEL*/
 
 				for (k = 0; k < 2; k++)
 				{
-					*right_s_channel = second_order_IIR(tempRight, filter2high, x_history3, y_history3);
+					*right_s_channel = second_order_IIR(*tempRight, filter2high, x_history3, y_history3);
 				}
 				for (k = 0; k < 2; k++)
 				{
@@ -265,10 +273,11 @@ void processing()
 				*tempRightHelp1 = (*tempRightHelp1) * gain_3;
 				for (k = 0; k < 2; k++)
 				{
-					*tempRightHelp2 = second_order_IIR(tempRight, filter2low, x_history4, y_history4);
+					*tempRightHelp2 = second_order_IIR(*tempRight, filter2low, x_history4, y_history4);
 				}
 				*tempRightHelp2 = (*tempRightHelp2) * gain_9;
-				*right_channel = (*tempRightHelp1) + (*tempRightHelp2);
+				tmp2 = (*tempRightHelp1) + (*tempRightHelp2);
+				*right_channel = tmp2;
 				
 				break;
 
@@ -276,11 +285,11 @@ void processing()
 				/*LEFT CHANNEL*/
 				for (k = 0; k < 2; k++)
 				{
-					*left_s_channel = second_order_IIR(tempLeft, filter2high, x_history0, y_history0);
+					*left_s_channel = second_order_IIR(*tempLeft, filter2high, x_history0, y_history0);
 				}
 				for (k = 0; k < 2; k++)
 				{
-					*bass_channel = second_order_IIR(tempLeft, filter2low, x_history2, y_history2);
+					*bass_channel = second_order_IIR(*tempLeft, filter2low, x_history2, y_history2);
 				}
 				*bass_channel = *bass_channel * gain_9;
 				for (k = 0; k < 2; k++)
@@ -296,7 +305,7 @@ void processing()
 
 				for (k = 0; k < 2; k++)
 				{
-					*right_s_channel = second_order_IIR(tempRight, filter2high, x_history3, y_history3);
+					*right_s_channel = second_order_IIR(*tempRight, filter2high, x_history3, y_history3);
 				}
 				for (k = 0; k < 2; k++)
 				{
@@ -305,7 +314,7 @@ void processing()
 				*tempRightHelp1 = *tempRightHelp1 * gain_3;
 				for (k = 0; k < 2; k++)
 				{
-					*tempRightHelp2 = second_order_IIR(tempRight, filter2low, x_history4, y_history4);
+					*tempRightHelp2 = second_order_IIR(*tempRight, filter2low, x_history4, y_history4);
 				}
 				*tempRightHelp2 = *tempRightHelp2 * gain_9;
 				*right_channel = *tempRightHelp1 + *tempRightHelp2;
@@ -334,9 +343,8 @@ void processing()
 		tempLeftHelp++;
 		tempRightHelp1++;
 		tempRightHelp2++;
-
-		
 	}
+
 }
 /*float dBToinput_gain()
 {
